@@ -74,3 +74,42 @@ export async function POST(req: Request) {
   }
   return NextResponse.json(data, { status: 201 });
 }
+
+// PATCH /api/organisations { id, notes? } -> update organisation notes
+export async function PATCH(req: Request) {
+  let body: { id?: unknown; notes?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!id) {
+    return NextResponse.json(
+      { error: "Organisation id is required." },
+      { status: 400 },
+    );
+  }
+
+  if (typeof body.notes !== "string") {
+    return NextResponse.json(
+      { error: "Notes must be a string." },
+      { status: 400 },
+    );
+  }
+
+  const notes = body.notes.trim() || null;
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("organisations")
+    .update({ notes })
+    .eq("id", id)
+    .select("id, name, notes")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json(data);
+}

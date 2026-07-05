@@ -168,7 +168,7 @@
 }
 
 .orgNote {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   padding: 12px 14px;
   border-radius: 8px;
   font-size: 14px;
@@ -177,6 +177,12 @@
   border: 1px solid rgba(91, 141, 239, 0.35);
   color: var(--text);
   white-space: pre-wrap;
+}
+
+.orgNoteEmpty {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .orgNoteLabel {

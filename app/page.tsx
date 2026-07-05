@@ -36,7 +36,7 @@ export default function Home() {
 
       <div className={styles.grid}>
         <UploadCard orgs={orgs} reloadOrgs={loadOrgs} />
-        <ExportCard orgs={orgs} />
+        <ExportCard orgs={orgs} reloadOrgs={loadOrgs} />
       </div>
 
       <footer className={styles.footer}>
@@ -306,15 +306,55 @@ function UploadCard({
   );
 }
 
-function ExportCard({ orgs }: { orgs: Organisation[] }) {
+function ExportCard({
+  orgs,
+  reloadOrgs,
+}: {
+  orgs: Organisation[];
+  reloadOrgs: () => Promise<void>;
+}) {
   const [orgId, setOrgId] = useState("");
+  const [notesDraft, setNotesDraft] = useState("");
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
   const selectedOrg = orgs.find((o) => o.id === orgId);
-  const orgNotes = selectedOrg?.notes?.trim();
+  const savedNotes = selectedOrg?.notes?.trim() ?? "";
+  const notesDirty = orgId !== "" && notesDraft !== savedNotes;
+
+  useEffect(() => {
+    setNotesDraft(savedNotes);
+    setEditingNotes(false);
+  }, [orgId, savedNotes]);
+
+  async function saveNotes() {
+    if (!orgId) return;
+    setSavingNotes(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/organisations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: orgId, notes: notesDraft }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setMsg({ type: "error", text: body.error ?? "Could not save notes." });
+        return;
+      }
+      await reloadOrgs();
+      setEditingNotes(false);
+      setMsg({ type: "success", text: "Notes saved." });
+    } catch (err) {
+      setMsg({ type: "error", text: (err as Error).message });
+    } finally {
+      setSavingNotes(false);
+    }
+  }
 
   async function download() {
     if (!orgId) return;
@@ -357,10 +397,62 @@ function ExportCard({ orgs }: { orgs: Organisation[] }) {
 
       <OrgSelect orgs={orgs} value={orgId} onChange={setOrgId} />
 
-      {orgNotes && (
-        <div className={styles.orgNote}>
-          <span className={styles.orgNoteLabel}>Notes</span>
-          {orgNotes}
+      {orgId && (
+        <div className={styles.field}>
+          <label className={styles.label}>Notes</label>
+          {savedNotes && !editingNotes ? (
+            <>
+              <div className={styles.orgNote}>{savedNotes}</div>
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={() => {
+                    setNotesDraft(savedNotes);
+                    setEditingNotes(true);
+                  }}
+                >
+                  Edit notes
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {!savedNotes && !editingNotes && (
+                <p className={styles.orgNoteEmpty}>
+                  No notes yet for this organisation.
+                </p>
+              )}
+              <textarea
+                className={styles.textarea}
+                placeholder="Add notes for this customer…"
+                value={notesDraft}
+                onChange={(e) => setNotesDraft(e.target.value)}
+              />
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  className={`${styles.button} ${styles.buttonSecondary}`}
+                  onClick={saveNotes}
+                  disabled={savingNotes || !notesDirty}
+                >
+                  {savingNotes ? "Saving…" : "Save notes"}
+                </button>
+                {savedNotes && (
+                  <button
+                    type="button"
+                    className={`${styles.button} ${styles.buttonSecondary}`}
+                    onClick={() => {
+                      setNotesDraft(savedNotes);
+                      setEditingNotes(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
