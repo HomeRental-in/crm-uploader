@@ -47,7 +47,8 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (existing) {
-    if (notesInBody) {
+    // Only overwrite notes when new non-empty notes were provided.
+    if (notesInBody && notes !== null) {
       const { data, error } = await supabase
         .from("organisations")
         .update({ notes })

@@ -67,10 +67,14 @@ function OrgSelect({
     if (!name || !reloadOrgs) return;
     setCreating(true);
     try {
+      const payload: { name: string; notes?: string } = { name };
+      const trimmedNotes = newNotes.trim();
+      if (trimmedNotes) payload.notes = trimmedNotes;
+
       const res = await fetch("/api/organisations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, notes: newNotes }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const org: Organisation = await res.json();
