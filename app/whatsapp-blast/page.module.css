@@ -1,0 +1,15 @@
+.nav {
+  margin-bottom: 24px;
+}
+
+.navLink {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.navLink:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}

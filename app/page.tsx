@@ -1,66 +1,386 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import Papa from "papaparse";
+import { CsvPreview } from "./components/CsvPreview";
+import { parseDMY } from "@/lib/parseDMY";
 import styles from "./page.module.css";
 
+type Organisation = { id: string; name: string };
+type Msg = { type: "success" | "error"; text: string } | null;
+
 export default function Home() {
+  const [orgs, setOrgs] = useState<Organisation[]>([]);
+
+  const loadOrgs = useCallback(async () => {
+    const res = await fetch("/api/organisations");
+    if (res.ok) setOrgs(await res.json());
+  }, []);
+
+  useEffect(() => {
+    loadOrgs();
+  }, [loadOrgs]);
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>CRM Uploader</h1>
+        <p className={styles.subtitle}>
+          Upload customer CRM data as CSV and export a filtered slice back out.{" "}
+          <Link href="/whatsapp-blast" style={{ color: "var(--accent)" }}>
+            WhatsApp Blast →
+          </Link>
+        </p>
+      </header>
+
+      <div className={styles.grid}>
+        <UploadCard orgs={orgs} reloadOrgs={loadOrgs} />
+        <ExportCard orgs={orgs} />
+      </div>
+
+      <footer className={styles.footer}>
+        Dates are read as dd/mm/yyyy. Re-uploading a customer&apos;s CSV appends
+        new rows.
+      </footer>
+    </main>
+  );
+}
+
+function OrgSelect({
+  orgs,
+  value,
+  onChange,
+  reloadOrgs,
+}: {
+  orgs: Organisation[];
+  value: string;
+  onChange: (id: string) => void;
+  reloadOrgs?: () => Promise<void>;
+}) {
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  async function createOrg() {
+    const name = newName.trim();
+    if (!name || !reloadOrgs) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/organisations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        const org: Organisation = await res.json();
+        await reloadOrgs();
+        onChange(org.id);
+        setNewName("");
+      }
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <>
+      <div className={styles.field}>
+        <label className={styles.label}>Organisation</label>
+        <select
+          className={styles.select}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">Select an organisation…</option>
+          {orgs.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {reloadOrgs && (
+        <div className={styles.inline}>
+          <div className={styles.field}>
+            <label className={styles.label}>Or add a new organisation</label>
+            <input
+              className={styles.input}
+              placeholder="New organisation name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+          <button
+            type="button"
+            className={`${styles.button} ${styles.buttonSecondary}`}
+            onClick={createOrg}
+            disabled={creating || !newName.trim()}
           >
-            Documentation
-          </a>
+            {creating ? "Adding…" : "Add"}
+          </button>
         </div>
-      </main>
-    </div>
+      )}
+    </>
+  );
+}
+
+function UploadCard({
+  orgs,
+  reloadOrgs,
+}: {
+  orgs: Organisation[];
+  reloadOrgs: () => Promise<void>;
+}) {
+  const [orgId, setOrgId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
+  const [dateColumn, setDateColumn] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [msg, setMsg] = useState<Msg>(null);
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    setHeaders([]);
+    setPreviewRows([]);
+    setDateColumn("");
+    setMsg(null);
+    if (!f) return;
+
+    Papa.parse(f, {
+      header: true,
+      preview: 5,
+      skipEmptyLines: true,
+      transformHeader: (h) => h.trim(),
+      complete: (result) => {
+        const fields = result.meta.fields ?? [];
+        setHeaders(fields);
+        setPreviewRows(result.data);
+        const guess = fields.find((h) => /date/i.test(h));
+        if (guess) setDateColumn(guess);
+      },
+    });
+  }
+
+  async function submit() {
+    if (!file || !orgId) return;
+    setUploading(true);
+    setMsg(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("organisationId", orgId);
+      form.append("dateColumn", dateColumn);
+
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) {
+        setMsg({ type: "error", text: body.error ?? "Upload failed." });
+        return;
+      }
+      const extra =
+        body.unparsedDates > 0
+          ? ` (${body.unparsedDates} rows had an unrecognised date and were stored without one)`
+          : "";
+      setMsg({
+        type: "success",
+        text: `Uploaded ${body.inserted} rows.${extra}`,
+      });
+    } catch (err) {
+      setMsg({ type: "error", text: (err as Error).message });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <section className={styles.card}>
+      <h2 className={styles.cardTitle}>Upload CSV</h2>
+      <p className={styles.cardHint}>
+        Choose the customer, pick the CSV, then tell us which column holds the
+        date (<code>dd/mm/yyyy</code>).{" "}
+        <a href="/samples/crm-sample.csv" download>
+          Download sample CSV
+        </a>{" "}
+        (KNS export: 16 columns, 7 rows).
+      </p>
+
+      <OrgSelect
+        orgs={orgs}
+        value={orgId}
+        onChange={setOrgId}
+        reloadOrgs={reloadOrgs}
+      />
+
+      <div className={styles.divider} />
+
+      <div className={styles.field}>
+        <label className={styles.label}>CSV file</label>
+        <input
+          className={styles.input}
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onFileChange}
+        />
+      </div>
+
+      {headers.length > 0 && (
+        <div className={styles.field}>
+          <label className={styles.label}>Date column (dd/mm/yyyy)</label>
+          <select
+            className={styles.select}
+            value={dateColumn}
+            onChange={(e) => setDateColumn(e.target.value)}
+          >
+            <option value="">No date column</option>
+            {headers.map((h) => (
+              <option key={h} value={h}>
+                {h}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {previewRows.length > 0 && (
+        <CsvPreview
+          title="Storage preview"
+          hint={
+            dateColumn
+              ? "Each row is stored as JSON (all columns) plus record_date parsed from the selected date column."
+              : "Each row is stored as JSON with all columns. No date column selected."
+          }
+          headers={headers}
+          rows={previewRows}
+          limit={5}
+          highlightColumn={dateColumn || undefined}
+          extraColumns={
+            dateColumn
+              ? [
+                  {
+                    key: "record_date",
+                    label: "record_date",
+                    value: (row) => parseDMY(row[dateColumn]),
+                  },
+                ]
+              : undefined
+          }
+        />
+      )}
+
+      <div className={styles.actions}>
+        <button
+          className={styles.button}
+          onClick={submit}
+          disabled={uploading || !file || !orgId}
+        >
+          {uploading ? "Uploading…" : "Upload"}
+        </button>
+      </div>
+
+      {msg && (
+        <div
+          className={`${styles.note} ${
+            msg.type === "success" ? styles.noteSuccess : styles.noteError
+          }`}
+        >
+          {msg.text}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ExportCard({ orgs }: { orgs: Organisation[] }) {
+  const [orgId, setOrgId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [msg, setMsg] = useState<Msg>(null);
+
+  async function download() {
+    if (!orgId) return;
+    setDownloading(true);
+    setMsg(null);
+    try {
+      const params = new URLSearchParams({ organisationId: orgId });
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+
+      const res = await fetch(`/api/export?${params.toString()}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setMsg({ type: "error", text: body.error ?? "Export failed." });
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `crm-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setMsg({ type: "success", text: "Export downloaded." });
+    } catch (err) {
+      setMsg({ type: "error", text: (err as Error).message });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <section className={styles.card}>
+      <h2 className={styles.cardTitle}>Export CSV</h2>
+      <p className={styles.cardHint}>
+        Pick a customer and date range, then download.
+      </p>
+
+      <OrgSelect orgs={orgs} value={orgId} onChange={setOrgId} />
+
+      <div className={styles.row}>
+        <div className={styles.field}>
+          <label className={styles.label}>From</label>
+          <input
+            className={styles.input}
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>To</label>
+          <input
+            className={styles.input}
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className={styles.actions}>
+        <button
+          className={styles.button}
+          onClick={download}
+          disabled={downloading || !orgId}
+        >
+          {downloading ? "Preparing…" : "Download CSV"}
+        </button>
+      </div>
+
+      {msg && (
+        <div
+          className={`${styles.note} ${
+            msg.type === "success" ? styles.noteSuccess : styles.noteError
+          }`}
+        >
+          {msg.text}
+        </div>
+      )}
+    </section>
   );
 }

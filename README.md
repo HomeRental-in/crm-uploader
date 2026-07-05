@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM Uploader
 
-## Getting Started
+A simple internal tool to upload customer CRM data (CSV) into Supabase and
+export a filtered slice back out as CSV. Built with Next.js (App Router) and
+protected by a single shared password.
 
-First, run the development server:
+## What it does
+
+- **Upload**: pick a customer (organisation), choose a CSV, and select which
+  column holds the date (`dd/mm/yyyy`). Rows are stored in Supabase. Re-uploading
+  a customer's CSV **appends** new rows (each upload is tracked separately).
+- **Export**: pick a customer, a date range, and optionally a column/value
+  filter, then download the matching rows as a CSV.
+- Every column and value from the original CSV is preserved (stored as JSONB),
+  so the data stays faithful for later mapping against PropFocus.
+
+## How it works
+
+| Piece | Where |
+| --- | --- |
+| Shared-password gate | `proxy.ts` (HTTP Basic Auth) |
+| DB access (secret key, bypasses RLS) | `lib/supabaseAdmin.ts` |
+| Date parsing (`dd/mm/yyyy` → ISO) | `lib/parseDMY.ts` |
+| API routes | `app/api/{organisations,headers,upload,export}` |
+| UI (one page) | `app/page.tsx` |
+| Database schema | `supabase/schema.sql` |
+
+## Setup
+
+### 1. Create the database tables
+
+In the Supabase dashboard, open **SQL Editor → New query**, paste the contents
+of [`supabase/schema.sql`](supabase/schema.sql), and run it.
+
+### 2. Configure environment variables
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `SUPABASE_URL` – your project URL.
+- `SUPABASE_SECRET_KEY` – a secret key (`sb_secret_...`) from
+  **Project Settings → API Keys**. This is server-only and bypasses RLS.
+- `APP_USERNAME` / `APP_PASSWORD` – the shared login for the app.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Run locally
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open http://localhost:3000. The browser will prompt for the username/password
+you set above.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Option A — Vercel + your Cloudflare domain (recommended)
 
-## Deploy on Vercel
+1. Push this repo to GitHub.
+2. In [Vercel](https://vercel.com), **Add New → Project** and import the repo.
+3. Add the four environment variables (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`,
+   `APP_USERNAME`, `APP_PASSWORD`) in **Settings → Environment Variables**.
+4. Deploy. Vercel gives you a `*.vercel.app` URL.
+5. Point your domain in Cloudflare: add a subdomain (e.g. `crm.n8npropfocus.com`)
+   as a **CNAME** to your Vercel deployment (Vercel shows the exact target under
+   **Settings → Domains** when you add the custom domain there). Set the
+   Cloudflare record to **DNS only** (grey cloud) first to let Vercel verify,
+   then you can re-enable the proxy if desired.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Option B — fully on Cloudflare
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Host a static build on Cloudflare Pages and move the upload/export logic into
+Supabase Edge Functions (the secret key is auto-injected there). More setup;
+only needed if you want everything under Cloudflare.
+
+## Notes & assumptions
+
+- Dates must be `dd/mm/yyyy`. Data is assumed to be cleaned before upload; rows
+  with an unrecognised date are still stored, just without a filterable date.
+- The date-range filter runs in the database (indexed); the optional
+  column/value match is applied in the server after fetching the ranged rows,
+  so arbitrary CSV header names (spaces, symbols) work reliably.
+- Very large files: uploads run through a serverless function, so extremely
+  large CSVs may hit platform body-size/timeout limits. For big datasets, move
+  ingestion to a Supabase Edge Function reading from Supabase Storage.
+- **Security**: keep `SUPABASE_SECRET_KEY` server-side only. If a secret key is
+  ever exposed, rotate it in the Supabase dashboard.
