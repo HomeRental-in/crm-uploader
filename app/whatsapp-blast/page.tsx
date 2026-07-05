@@ -46,7 +46,7 @@ export default function WhatsappBlastPage() {
     setMsg(null);
     if (!f) return;
 
-    Papa.parse(f, {
+    Papa.parse<Record<string, string>>(f, {
       header: true,
       preview: 5,
       skipEmptyLines: true,
