@@ -7,7 +7,7 @@ import { CsvPreview } from "./components/CsvPreview";
 import { parseDMY } from "@/lib/parseDMY";
 import styles from "./page.module.css";
 
-type Organisation = { id: string; name: string };
+type Organisation = { id: string; name: string; notes?: string | null };
 type Msg = { type: "success" | "error"; text: string } | null;
 
 export default function Home() {
@@ -59,6 +59,7 @@ function OrgSelect({
   reloadOrgs?: () => Promise<void>;
 }) {
   const [newName, setNewName] = useState("");
+  const [newNotes, setNewNotes] = useState("");
   const [creating, setCreating] = useState(false);
 
   async function createOrg() {
@@ -69,13 +70,14 @@ function OrgSelect({
       const res = await fetch("/api/organisations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, notes: newNotes }),
       });
       if (res.ok) {
         const org: Organisation = await res.json();
         await reloadOrgs();
         onChange(org.id);
         setNewName("");
+        setNewNotes("");
       }
     } finally {
       setCreating(false);
@@ -101,25 +103,36 @@ function OrgSelect({
       </div>
 
       {reloadOrgs && (
-        <div className={styles.inline}>
+        <>
+          <div className={styles.inline}>
+            <div className={styles.field}>
+              <label className={styles.label}>Or add a new organisation</label>
+              <input
+                className={styles.input}
+                placeholder="New organisation name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <button
+              type="button"
+              className={`${styles.button} ${styles.buttonSecondary}`}
+              onClick={createOrg}
+              disabled={creating || !newName.trim()}
+            >
+              {creating ? "Adding…" : "Add"}
+            </button>
+          </div>
           <div className={styles.field}>
-            <label className={styles.label}>Or add a new organisation</label>
-            <input
-              className={styles.input}
-              placeholder="New organisation name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
+            <label className={styles.label}>Notes (optional)</label>
+            <textarea
+              className={styles.textarea}
+              placeholder="Context for exports — e.g. date format quirks, column mappings…"
+              value={newNotes}
+              onChange={(e) => setNewNotes(e.target.value)}
             />
           </div>
-          <button
-            type="button"
-            className={`${styles.button} ${styles.buttonSecondary}`}
-            onClick={createOrg}
-            disabled={creating || !newName.trim()}
-          >
-            {creating ? "Adding…" : "Add"}
-          </button>
-        </div>
+        </>
       )}
     </>
   );
@@ -300,6 +313,9 @@ function ExportCard({ orgs }: { orgs: Organisation[] }) {
   const [downloading, setDownloading] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
+  const selectedOrg = orgs.find((o) => o.id === orgId);
+  const orgNotes = selectedOrg?.notes?.trim();
+
   async function download() {
     if (!orgId) return;
     setDownloading(true);
@@ -340,6 +356,13 @@ function ExportCard({ orgs }: { orgs: Organisation[] }) {
       </p>
 
       <OrgSelect orgs={orgs} value={orgId} onChange={setOrgId} />
+
+      {orgNotes && (
+        <div className={styles.orgNote}>
+          <span className={styles.orgNoteLabel}>Notes</span>
+          {orgNotes}
+        </div>
+      )}
 
       <div className={styles.row}>
         <div className={styles.field}>

@@ -6,8 +6,11 @@
 create table if not exists organisations (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
+  notes text,                     -- optional context shown on export
   created_at timestamptz not null default now()
 );
+
+alter table organisations add column if not exists notes text;
 
 -- 2. Imports: one row per uploaded CSV (keeps an audit trail + original headers)
 create table if not exists imports (

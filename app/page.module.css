@@ -57,7 +57,8 @@
 }
 
 .input,
-.select {
+.select,
+.textarea {
   width: 100%;
   padding: 10px 12px;
   background: #0a1223;
@@ -68,8 +69,16 @@
   transition: border-color 0.15s ease;
 }
 
+.textarea {
+  min-height: 72px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
 .input:focus,
-.select:focus {
+.select:focus,
+.textarea:focus {
   border-color: var(--accent);
 }
 
@@ -156,6 +165,28 @@
   background: rgba(229, 72, 77, 0.12);
   border-color: rgba(229, 72, 77, 0.4);
   color: #ff9ea1;
+}
+
+.orgNote {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  background: rgba(91, 141, 239, 0.1);
+  border: 1px solid rgba(91, 141, 239, 0.35);
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.orgNoteLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .divider {
