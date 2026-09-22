@@ -138,5 +138,16 @@ insert into features (key, name, category, sort_order) values
   ('ai_agent',        'AI Agent / Assistant',     'Automation',   90),
   ('salesforce_sync', 'Salesforce Integration',   'Integrations', 100),
   ('report_pack',     'Reports & Analytics',      'Insights',     110),
-  ('priority_list',   'Priority Lead List',       'Insights',     120)
+  ('priority_list',   'Priority Lead List',       'Insights',     120),
+  ('post_site_visit_pages', 'Post Site Visit Pages', 'Pages',      130),
+  ('eoi_pages',            'EOI Pages',             'Pages',      140),
+  ('site_visit_pages',     'Site Visit Pages',      'Pages',      150),
+  ('project_theme',        'Project Level Theme',   'Pages',      160),
+  ('domain_whitelisting',  'Domain Whitelisting',   'Domains',    170),
+  ('followup_module',      'Follow Up Module',      'Engagement', 180),
+  ('whatsapp_generation',  'WhatsApp Generation',   'WhatsApp',   190),
+  ('whatsapp_blast',       'WhatsApp Blast',        'WhatsApp',   200),
+  ('dashboard_generation', 'Dashboard Generation',  'Generation', 210),
+  ('crm_generation',       'CRM Generation',        'CRM',        220),
+  ('buyer_id_enforcement', 'Buyer ID Enforcement',  'CRM',        230)
 on conflict (key) do nothing;
