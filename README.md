@@ -13,6 +13,13 @@ protected by a single shared password.
   filter, then download the matching rows as a CSV.
 - Every column and value from the original CSV is preserved (stored as JSONB),
   so the data stays faithful for later mapping against PropFocus.
+- **Feature Tracker**: a static page (`public/propfocus-tracker/index.html`)
+  that lists every organisation with its status, monthly revenue and a checkbox
+  per PropFocus feature. It ships with this app and is served at
+  **https://customer.n8npropfocus.com** (and at `/propfocus-tracker` on any
+  hostname). It uses the same `organisations` rows as the uploader and has its
+  own Supabase login instead of the shared password. See
+  [Feature Tracker](#feature-tracker) below.
 
 ## How it works
 
@@ -24,6 +31,7 @@ protected by a single shared password.
 | API routes | `app/api/{organisations,headers,upload,export}` |
 | UI (one page) | `app/page.tsx` |
 | Database schema | `supabase/schema.sql` |
+| Feature Tracker page + host routing | `public/propfocus-tracker/index.html`, `proxy.ts` |
 
 ## Setup
 
@@ -75,6 +83,42 @@ you set above.
 Host a static build on Cloudflare Pages and move the upload/export logic into
 Supabase Edge Functions (the secret key is auto-injected there). More setup;
 only needed if you want everything under Cloudflare.
+
+## Feature Tracker
+
+The tracker is one static HTML file at `public/propfocus-tracker/index.html`.
+It talks to Supabase directly from the browser using the project's
+**publishable (anon) key**, which is embedded in the file and safe to ship:
+Row Level Security only lets users signed in through Supabase Auth read or
+write the tracker's tables.
+
+**Routing** (`proxy.ts`):
+
+- On `TRACKER_HOST` (env var, default `customer.n8npropfocus.com`) the root path
+  serves the tracker and every other path returns 404, so the CRM pages and API
+  are never reachable on that hostname.
+- On any hostname `/propfocus-tracker` serves the same page (local dev, and a
+  fallback until the customer DNS record exists).
+- Neither is behind the shared password; the page has its own login.
+
+**To put it on customer.n8npropfocus.com**, add that hostname to wherever this
+app is deployed (the same deployment that answers crm.n8npropfocus.com) and
+point a `customer` DNS record at it, exactly as was done for `crm`. Nothing
+else changes; the app decides what to serve by hostname.
+
+**Database**: section 5 of [`supabase/schema.sql`](supabase/schema.sql) adds
+`status` and `monthly_revenue` to `organisations`, creates `features` and
+`organisation_features`, seeds 12 feature columns, and adds the sign-in-only
+policies. This has been run on project `yzsgosxqawdqfumtjagu`.
+
+**Logins**: Supabase → Authentication → Users → *Add user* (tick *Auto confirm
+user*). Every Auth user in the project can sign in to the tracker.
+
+**Using it**: add organisations (names are shared with the uploader), edit the
+name and revenue in place, pick a status, tick features, manage the feature
+columns, sort/filter/search, and export the visible rows as CSV. There is
+deliberately no delete-organisation button, because that would cascade-delete
+the organisation's uploaded CRM records.
 
 ## Notes & assumptions
 

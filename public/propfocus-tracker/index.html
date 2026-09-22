@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PropFocus Tracker</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%233ecf8e'/><path d='M9 17l5 5 9-11' stroke='%23000' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>
+  :root {
+    --bg: #0f1113;
+    --panel: #171a1d;
+    --panel-2: #1e2226;
+    --border: #2a2f34;
+    --border-strong: #3a4148;
+    --text: #e8eaed;
+    --muted: #8b939c;
+    --accent: #3ecf8e;
+    --accent-ink: #062b1a;
+    --danger: #ff6b6b;
+    --warn: #f5b942;
+    --info: #6aa9ff;
+    --shadow: 0 10px 30px rgba(0,0,0,.45);
+    --radius: 10px;
+    --row-h: 46px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  a { color: var(--accent); }
+
+  /* ---------- layout ---------- */
+  .app { display: none; min-height: 100%; flex-direction: column; }
+  .app.visible { display: flex; }
+  header.top {
+    position: sticky; top: 0; z-index: 30;
+    background: linear-gradient(var(--bg), rgba(15,17,19,.96));
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+  .brand .logo {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--accent);
+    display: grid; place-items: center; color: var(--accent-ink); font-weight: 800;
+  }
+  .brand h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: .1px; }
+  .brand small { display: block; color: var(--muted); font-size: 12px; }
+
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; }
+  .stat {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; min-width: 96px;
+  }
+  .stat b { display: block; font-size: 16px; font-weight: 650; }
+  .stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .toolbar .spacer { flex: 1; }
+  .field {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0 10px; height: 36px;
+  }
+  .field input, .field select {
+    background: transparent; border: 0; outline: none; height: 100%; min-width: 0;
+  }
+  .field input { width: 220px; }
+  .field select option { background: var(--panel-2); }
+  .field svg { width: 16px; height: 16px; color: var(--muted); flex: none; }
+
+  .btn {
+    height: 36px; padding: 0 14px; border-radius: 8px;
+    border: 1px solid var(--border-strong); background: var(--panel-2); color: var(--text);
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+    transition: background .12s, border-color .12s;
+  }
+  .btn:hover { background: #262b30; border-color: #4a525a; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+  .btn.primary:hover { background: #55d99c; }
+  .btn.danger { color: var(--danger); }
+  .btn.danger:hover { background: rgba(255,107,107,.1); border-color: rgba(255,107,107,.4); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); background: var(--panel-2); }
+  .btn.sm { height: 30px; padding: 0 10px; font-size: 13px; }
+  .btn svg { width: 15px; height: 15px; }
+  .btn[disabled] { opacity: .55; cursor: default; }
+
+  /* ---------- table ---------- */
+  .table-wrap { flex: 1; overflow: auto; padding: 0 0 60px; }
+  table.grid { border-collapse: separate; border-spacing: 0; min-width: 100%; }
+  .grid th, .grid td {
+    border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
+    height: var(--row-h); padding: 0 10px; white-space: nowrap; text-align: left;
+    vertical-align: middle;
+  }
+  .grid thead th {
+    position: sticky; top: 0; z-index: 12;
+    background: var(--panel); color: var(--muted);
+    font-size: 12px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase;
+    height: 56px; border-bottom: 1px solid var(--border-strong);
+  }
+  .grid th.sortable { cursor: pointer; user-select: none; }
+  .grid th.sortable:hover { color: var(--text); }
+  .grid th .sort { opacity: .6; margin-left: 4px; }
+  .grid th.feature {
+    text-transform: none; letter-spacing: 0; text-align: center; min-width: 118px; max-width: 160px;
+    white-space: normal; line-height: 1.25; padding: 6px 8px;
+  }
+  .grid th.feature .fname { color: var(--text); font-weight: 600; display: block; }
+  .grid th.feature .fcount { color: var(--muted); font-size: 11px; font-weight: 500; display: block; margin-top: 3px; }
+  .grid th.feature .fcat { color: var(--accent); font-size: 10px; font-weight: 600; display: block; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 2px; }
+
+  .grid .col-name { position: sticky; left: 0; z-index: 11; background: var(--panel); min-width: 240px; }
+  .grid thead .col-name { z-index: 13; }
+  .grid tbody tr:hover td { background: #1a1e22; }
+  .grid tbody tr:hover td.col-name { background: #1c2125; }
+  .grid td.col-name { background: var(--panel); border-right: 1px solid var(--border-strong); }
+  .grid td.center { text-align: center; }
+  .grid td.actions { width: 44px; text-align: center; border-right: 0; }
+  .grid tfoot td {
+    position: sticky; bottom: 0; z-index: 12; background: var(--panel);
+    border-top: 1px solid var(--border-strong); color: var(--muted); font-weight: 600;
+  }
+  .grid tfoot td.col-name { color: var(--text); z-index: 13; }
+
+  .cell-input {
+    width: 100%; background: transparent; border: 1px solid transparent; border-radius: 6px;
+    height: 32px; padding: 0 8px; outline: none; transition: border-color .12s, background .12s;
+  }
+  .cell-input:hover { border-color: var(--border-strong); }
+  .cell-input:focus { border-color: var(--accent); background: var(--panel-2); }
+  .cell-input.name { font-weight: 600; }
+  .org-notes { color: var(--muted); font-size: 11px; padding: 0 9px; margin-top: -4px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  .revenue-wrap { display: flex; align-items: center; gap: 4px; }
+  .revenue-wrap .cur { color: var(--muted); }
+  .revenue-wrap input { width: 110px; text-align: right; -moz-appearance: textfield; }
+  .revenue-wrap input::-webkit-outer-spin-button, .revenue-wrap input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  .status-select {
+    appearance: none; -webkit-appearance: none;
+    border: 1px solid transparent; border-radius: 999px; height: 28px; padding: 0 26px 0 12px;
+    font-weight: 600; font-size: 12px; outline: none; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23ffffff'%3E%3Cpath d='M5.5 7.5l4.5 4.5 4.5-4.5' stroke='%23b7bec6' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; background-size: 12px;
+  }
+  .status-select option { background: var(--panel-2); color: var(--text); font-weight: 500; }
+  .status-select:focus { border-color: currentColor; }
+  .st-onboarding { background: rgba(106,169,255,.16); color: #9cc3ff; }
+  .st-trial      { background: rgba(245,185,66,.16); color: #ffd27a; }
+  .st-active     { background: rgba(62,207,142,.16); color: #6fe3ad; }
+  .st-paused     { background: rgba(139,147,156,.18); color: #b7bec6; }
+  .st-churned    { background: rgba(255,107,107,.16); color: #ff9d9d; }
+
+  .chk {
+    appearance: none; -webkit-appearance: none;
+    width: 20px; height: 20px; border-radius: 6px; margin: 0;
+    border: 1.5px solid var(--border-strong); background: var(--panel-2);
+    display: inline-grid; place-items: center; cursor: pointer; vertical-align: middle;
+    transition: background .12s, border-color .12s, transform .08s;
+  }
+  .chk:hover { border-color: var(--accent); }
+  .chk:active { transform: scale(.92); }
+  .chk:checked { background: var(--accent); border-color: var(--accent); }
+  .chk:checked::after {
+    content: ""; width: 6px; height: 10px; border: solid var(--accent-ink);
+    border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg);
+  }
+  .chk.saving { opacity: .5; }
+  .icon-btn {
+    width: 30px; height: 30px; border-radius: 7px; border: 0; background: transparent;
+    color: var(--muted); display: inline-grid; place-items: center;
+  }
+  .icon-btn:hover { background: rgba(255,107,107,.12); color: var(--danger); }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  .empty {
+    padding: 60px 20px; text-align: center; color: var(--muted);
+  }
+  .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
+
+  /* ---------- login ---------- */
+  .login {
+    min-height: 100%; display: none; place-items: center; padding: 20px;
+  }
+  .login.visible { display: grid; }
+  .card {
+    width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; box-shadow: var(--shadow);
+  }
+  .card h2 { margin: 0 0 4px; font-size: 18px; }
+  .card p { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+  .card label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+  .card input {
+    width: 100%; height: 40px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--panel-2); padding: 0 12px; outline: none;
+  }
+  .card input:focus { border-color: var(--accent); }
+  .card .btn { width: 100%; justify-content: center; margin-top: 18px; height: 40px; }
+  .err { color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .config-warn {
+    background: rgba(245,185,66,.1); border: 1px solid rgba(245,185,66,.35); color: #ffd27a;
+    border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 14px;
+  }
+  .config-warn code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  /* ---------- modal ---------- */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 50;
+    display: none; place-items: center; padding: 20px;
+  }
+  .modal-bg.open { display: grid; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border-strong); border-radius: 14px;
+    width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column;
+    box-shadow: var(--shadow);
+  }
+  .modal header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .modal header h3 { margin: 0; font-size: 16px; flex: 1; }
+  .modal .body { padding: 16px 20px; overflow: auto; }
+  .modal footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+  .modal label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 6px; }
+  .modal input[type=text], .modal input[type=number], .modal select, .modal textarea {
+    width: 100%; height: 38px; border-radius: 8px; border: 1px solid var(--border-strong);
+    background: var(--panel-2); padding: 0 12px; outline: none;
+  }
+  .modal textarea { height: auto; padding: 10px 12px; min-height: 70px; resize: vertical; }
+  .modal input:focus, .modal select:focus, .modal textarea:focus { border-color: var(--accent); }
+  .modal select option { background: var(--panel-2); }
+
+  .feat-list { display: flex; flex-direction: column; gap: 6px; }
+  .feat-row {
+    display: grid; grid-template-columns: 24px 1fr 130px 34px; gap: 8px; align-items: center;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px;
+  }
+  .feat-row .handle { color: var(--muted); cursor: grab; text-align: center; }
+  .feat-row input { height: 32px !important; background: transparent !important; border-color: transparent !important; }
+  .feat-row input:hover { border-color: var(--border-strong) !important; }
+  .feat-row input:focus { border-color: var(--accent) !important; }
+  .feat-row.dragging { opacity: .4; }
+  .feat-add { display: grid; grid-template-columns: 1fr 130px auto; gap: 8px; margin-top: 12px; }
+  .feat-add input { height: 36px !important; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+
+  /* ---------- toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 20px);
+    background: #22272c; border: 1px solid var(--border-strong); color: var(--text);
+    padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow);
+    opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; z-index: 60;
+    font-size: 13px; display: flex; align-items: center; gap: 8px; max-width: 90vw;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.error { border-color: rgba(255,107,107,.5); color: #ffb3b3; }
+  .toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+  .toast.error .dot { background: var(--danger); }
+
+  .kbd { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
+
+  @media (max-width: 720px) {
+    header.top { padding: 12px 14px; }
+    .toolbar { padding: 10px 14px; }
+    .field input { width: 140px; }
+    .stats { width: 100%; }
+    .stat { flex: 1; min-width: 0; }
+    .grid .col-name { min-width: 170px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div class="login" id="login">
+  <form class="card" id="loginForm">
+    <h2>PropFocus Tracker</h2>
+    <p>Sign in with your tracker account to continue.</p>
+    <div class="config-warn" id="configWarn" hidden>
+      Supabase isn't configured yet. Open this file and set <code>SUPABASE_ANON_KEY</code> in the config block at the top of the script.
+    </div>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+    <button class="btn primary" id="loginBtn" type="submit">Sign in</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">P</div>
+      <div>
+        <h1>Organization Feature Tracker</h1>
+        <small>Which PropFocus features each organization has switched on</small>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="statOrgs">0</b><span>Organizations</span></div>
+      <div class="stat"><b id="statActive">0</b><span>Active</span></div>
+      <div class="stat"><b id="statMrr">₹0</b><span>Monthly revenue</span></div>
+      <div class="stat"><b id="statFeatures">0</b><span>Features</span></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Search organizations…">
+    </div>
+    <div class="field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="onboarding">Onboarding</option>
+        <option value="trial">Trial</option>
+        <option value="active">Active</option>
+        <option value="paused">Paused</option>
+        <option value="churned">Churned</option>
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="refreshBtn" title="Reload from Supabase">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg> Refresh
+    </button>
+    <button class="btn ghost" id="exportBtn" title="Download as CSV">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg> Export
+    </button>
+    <button class="btn" id="featuresBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg> Manage features
+    </button>
+    <button class="btn primary" id="addOrgBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg> Add organization
+    </button>
+    <button class="btn ghost" id="signOutBtn" title="Sign out">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg>
+    </button>
+  </div>
+
+  <div class="table-wrap" id="tableWrap"></div>
+</div>
+
+<!-- ============ ADD ORG MODAL ============ -->
+<div class="modal-bg" id="orgModal">
+  <form class="modal" id="orgForm">
+    <header><h3>Add organization</h3><button type="button" class="btn ghost sm" data-close>✕</button></header>
+    <div class="body">
+      <label>Organization name</label>
+      <input type="text" id="orgName" required placeholder="e.g. Skyline Realty">
+      <label>Status</label>
+      <select id="orgStatus">
+        <option value="onboarding">Onboarding</option>
+        <option value="trial" selected>Trial</option>
+        <option value="active">Active</option>
+        <option value="paused">Paused</option>
+        <option value="churned">Churned</option>
+      </select>
+      <label>Monthly revenue (₹)</label>
+      <input type="number" id="orgRevenue" min="0" step="1" value="0">
+      <label>Notes (optional)</label>
+      <textarea id="orgNotes" placeholder="Plan, contact, anything worth remembering"></textarea>
+    </div>
+    <footer>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Add</button>
+    </footer>
+  </form>
+</div>
+
+<!-- ============ FEATURES MODAL ============ -->
+<div class="modal-bg" id="featModal">
+  <div class="modal">
+    <header><h3>Manage features</h3><button type="button" class="btn ghost sm" data-close>✕</button></header>
+    <div class="body">
+      <div class="feat-list" id="featList"></div>
+      <form class="feat-add" id="featAddForm">
+        <input type="text" id="featName" placeholder="New feature name" required>
+        <input type="text" id="featCat" placeholder="Category">
+        <button class="btn primary" type="submit">Add</button>
+      </form>
+      <div class="hint">Drag rows to reorder columns. Renaming saves on blur. Deleting a feature removes it from every organization.</div>
+    </div>
+    <footer><button type="button" class="btn" data-close>Done</button></footer>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastMsg"></span></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+/* =========================================================================
+   CONFIG — paste the anon (public) key from Supabase → Project Settings → API
+   ========================================================================= */
+const SUPABASE_URL      = "https://yzsgosxqawdqfumtjagu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_u5ew2twXhcOUQgv2Jq4TYw_vwvjLshG";
+const CURRENCY_SYMBOL   = "₹";
+/* ========================================================================= */
+
+const STATUSES = [
+  { value: "onboarding", label: "Onboarding" },
+  { value: "trial",      label: "Trial" },
+  { value: "active",     label: "Active" },
+  { value: "paused",     label: "Paused" },
+  { value: "churned",    label: "Churned" },
+];
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtMoney = n => CURRENCY_SYMBOL + Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+const configured = SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.startsWith("PASTE_");
+const sb = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* ---------- state ---------- */
+let orgs = [];          // [{id, name, status, monthly_revenue, notes, sort_order, features:Set<featureId>}]
+let features = [];      // [{id, key, name, category, sort_order}]
+let sort = { key: "name", dir: 1 };
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg, isError = false) {
+  const t = $("#toast");
+  $("#toastMsg").textContent = msg;
+  t.classList.toggle("error", isError);
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), isError ? 5000 : 1600);
+}
+function fail(err, what = "Save failed") {
+  console.error(err);
+  toast(`${what}: ${err?.message || err}`, true);
+}
+
+/* ---------- auth ---------- */
+async function boot() {
+  if (!configured) {
+    $("#configWarn").hidden = false;
+    $("#login").classList.add("visible");
+    $("#loginBtn").disabled = true;
+    return;
+  }
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) showApp(); else showLogin();
+  sb.auth.onAuthStateChange((_e, s) => { if (s) showApp(); else showLogin(); });
+}
+function showLogin() {
+  $("#app").classList.remove("visible");
+  $("#login").classList.add("visible");
+}
+async function showApp() {
+  if ($("#app").classList.contains("visible")) return;
+  $("#login").classList.remove("visible");
+  $("#app").classList.add("visible");
+  await loadAll();
+}
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = $("#loginBtn"); btn.disabled = true; $("#loginErr").textContent = "";
+  const { error } = await sb.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#password").value });
+  btn.disabled = false;
+  if (error) $("#loginErr").textContent = error.message;
+});
+$("#signOutBtn").addEventListener("click", () => sb.auth.signOut());
+
+/* ---------- data ---------- */
+async function loadAll() {
+  $("#tableWrap").innerHTML = `<div class="empty">Loading…</div>`;
+  const [f, o, of] = await Promise.all([
+    sb.from("features").select("id, key, name, category, sort_order").order("sort_order").order("name"),
+    sb.from("organisations").select("id, name, notes, status, monthly_revenue").order("name"),
+    sb.from("organisation_features").select("organisation_id, feature_id"),
+  ]);
+  const err = f.error || o.error || of.error;
+  if (err) { fail(err, "Load failed"); $("#tableWrap").innerHTML = `<div class="empty"><b>Couldn't load data</b>${esc(err.message)}<br><br>Did you run <code>supabase/schema.sql</code>?</div>`; return; }
+  features = f.data;
+  const byOrg = new Map();
+  for (const r of of.data) { if (!byOrg.has(r.organisation_id)) byOrg.set(r.organisation_id, new Set()); byOrg.get(r.organisation_id).add(r.feature_id); }
+  orgs = o.data.map(x => ({ ...x, features: byOrg.get(x.id) || new Set() }));
+  render();
+}
+
+async function updateOrg(id, patch) {
+  const { error } = await sb.from("organisations").update(patch).eq("id", id);
+  if (error) return fail(error);
+  Object.assign(orgs.find(o => o.id === id), patch);
+  toast("Saved");
+  renderStats();
+}
+async function setFeature(orgId, featureId, enabled, chk) {
+  chk.classList.add("saving");
+  const { error } = enabled
+    ? await sb.from("organisation_features").upsert({ organisation_id: orgId, feature_id: featureId }, { onConflict: "organisation_id,feature_id", ignoreDuplicates: true })
+    : await sb.from("organisation_features").delete().eq("organisation_id", orgId).eq("feature_id", featureId);
+  chk.classList.remove("saving");
+  if (error) { chk.checked = !enabled; return fail(error); }
+  const org = orgs.find(o => o.id === orgId);
+  enabled ? org.features.add(featureId) : org.features.delete(featureId);
+  toast(enabled ? "Feature enabled" : "Feature disabled");
+  renderFeatureCounts();
+}
+
+/* ---------- render ---------- */
+function visibleOrgs() {
+  const q = $("#search").value.trim().toLowerCase();
+  const st = $("#statusFilter").value;
+  let list = orgs.filter(o => (!q || o.name.toLowerCase().includes(q) || (o.notes || "").toLowerCase().includes(q)) && (!st || o.status === st));
+  const dir = sort.dir;
+  const statusRank = Object.fromEntries(STATUSES.map((s, i) => [s.value, i]));
+  list.sort((a, b) => {
+    if (sort.key === "name") return dir * a.name.localeCompare(b.name);
+    if (sort.key === "status") return dir * (statusRank[a.status] - statusRank[b.status]) || a.name.localeCompare(b.name);
+    if (sort.key === "revenue") return dir * (Number(a.monthly_revenue) - Number(b.monthly_revenue)) || a.name.localeCompare(b.name);
+    if (sort.key === "count") return dir * (a.features.size - b.features.size) || a.name.localeCompare(b.name);
+    return 0;
+  });
+  return list;
+}
+
+function render() {
+  renderStats();
+  const list = visibleOrgs();
+  const wrap = $("#tableWrap");
+  if (!orgs.length) {
+    wrap.innerHTML = `<div class="empty"><b>No organizations yet</b>Click <em>Add organization</em> to start mapping features.</div>`;
+    return;
+  }
+  const arrow = k => sort.key === k ? `<span class="sort">${sort.dir > 0 ? "↑" : "↓"}</span>` : "";
+  const featHead = features.map(f => `
+    <th class="feature" data-fid="${f.id}" title="${esc(f.name)}">
+      ${f.category ? `<span class="fcat">${esc(f.category)}</span>` : ""}
+      <span class="fname">${esc(f.name)}</span>
+      <span class="fcount" data-count="${f.id}"></span>
+    </th>`).join("");
+
+  const rows = list.map(o => `
+    <tr data-id="${o.id}">
+      <td class="col-name">
+        <input class="cell-input name" data-field="name" value="${esc(o.name)}" title="${esc(o.notes || "")}" spellcheck="false">
+        ${o.notes ? `<div class="org-notes" title="${esc(o.notes)}">${esc(o.notes)}</div>` : ""}
+      </td>
+      <td>
+        <select class="status-select st-${o.status}" data-field="status">
+          ${STATUSES.map(s => `<option value="${s.value}" ${s.value === o.status ? "selected" : ""}>${s.label}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <div class="revenue-wrap"><span class="cur">${CURRENCY_SYMBOL}</span>
+          <input class="cell-input" type="number" min="0" step="1" data-field="monthly_revenue" value="${Number(o.monthly_revenue) || 0}">
+        </div>
+      </td>
+      <td class="center" style="color:var(--muted)">${o.features.size}/${features.length}</td>
+      ${features.map(f => `<td class="center"><input type="checkbox" class="chk" data-fid="${f.id}" ${o.features.has(f.id) ? "checked" : ""}></td>`).join("")}
+    </tr>`).join("");
+
+  const totalRev = list.reduce((s, o) => s + Number(o.monthly_revenue || 0), 0);
+  wrap.innerHTML = `
+    <table class="grid">
+      <thead><tr>
+        <th class="col-name sortable" data-sort="name">Organization ${arrow("name")}</th>
+        <th class="sortable" data-sort="status">Status ${arrow("status")}</th>
+        <th class="sortable" data-sort="revenue">Monthly revenue ${arrow("revenue")}</th>
+        <th class="sortable" data-sort="count" style="text-align:center">Features ${arrow("count")}</th>
+        ${featHead}
+      </tr></thead>
+      <tbody>${rows || `<tr><td colspan="${features.length + 4}" class="empty">No organizations match this filter.</td></tr>`}</tbody>
+      <tfoot><tr>
+        <td class="col-name">${list.length} of ${orgs.length} organization${orgs.length === 1 ? "" : "s"}</td>
+        <td></td>
+        <td style="text-align:right">${fmtMoney(totalRev)}</td>
+        <td></td>
+        ${features.map(f => `<td class="center" data-foot="${f.id}"></td>`).join("")}
+      </tr></tfoot>
+    </table>`;
+  renderFeatureCounts();
+}
+
+function renderFeatureCounts() {
+  for (const f of features) {
+    const n = orgs.filter(o => o.features.has(f.id)).length;
+    const head = $(`[data-count="${f.id}"]`); if (head) head.textContent = `${n} of ${orgs.length}`;
+    const foot = $(`[data-foot="${f.id}"]`); if (foot) foot.textContent = n;
+  }
+}
+function renderStats() {
+  $("#statOrgs").textContent = orgs.length;
+  $("#statActive").textContent = orgs.filter(o => o.status === "active").length;
+  $("#statMrr").textContent = fmtMoney(orgs.reduce((s, o) => s + Number(o.monthly_revenue || 0), 0));
+  $("#statFeatures").textContent = features.length;
+}
+
+/* ---------- table events (delegated) ---------- */
+const wrap = $("#tableWrap");
+wrap.addEventListener("change", e => {
+  const tr = e.target.closest("tr[data-id]"); if (!tr) return;
+  const id = tr.dataset.id;
+  if (e.target.classList.contains("chk")) return setFeature(id, e.target.dataset.fid, e.target.checked, e.target);
+  const field = e.target.dataset.field; if (!field) return;
+  if (field === "status") {
+    e.target.className = `status-select st-${e.target.value}`;
+    return updateOrg(id, { status: e.target.value });
+  }
+  if (field === "monthly_revenue") {
+    const v = Math.max(0, Number(e.target.value) || 0); e.target.value = v;
+    return updateOrg(id, { monthly_revenue: v });
+  }
+  if (field === "name") {
+    const v = e.target.value.trim();
+    if (!v) { e.target.value = orgs.find(o => o.id === id).name; return; }
+    return updateOrg(id, { name: v });
+  }
+});
+wrap.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.classList.contains("cell-input")) e.target.blur();
+  if (e.key === "Escape" && e.target.classList.contains("cell-input")) { e.target.value = e.target.defaultValue; e.target.blur(); }
+});
+wrap.addEventListener("click", e => {
+  const th = e.target.closest("th[data-sort]");
+  if (th) { const k = th.dataset.sort; sort = sort.key === k ? { key: k, dir: -sort.dir } : { key: k, dir: 1 }; return render(); }
+});
+$("#search").addEventListener("input", render);
+$("#statusFilter").addEventListener("change", render);
+$("#refreshBtn").addEventListener("click", loadAll);
+
+/* ---------- add org ---------- */
+function openModal(id) { $(id).classList.add("open"); const first = $(id).querySelector("input[type=text]"); first && setTimeout(() => first.focus(), 30); }
+function closeModal(id) { $(id).classList.remove("open"); }
+$$("[data-close]").forEach(b => b.addEventListener("click", () => closeModal("#" + b.closest(".modal-bg").id)));
+$$(".modal-bg").forEach(m => m.addEventListener("mousedown", e => { if (e.target === m) m.classList.remove("open"); }));
+document.addEventListener("keydown", e => { if (e.key === "Escape") $$(".modal-bg.open").forEach(m => m.classList.remove("open")); });
+
+$("#addOrgBtn").addEventListener("click", () => { $("#orgForm").reset(); openModal("#orgModal"); });
+$("#orgForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const row = {
+    name: $("#orgName").value.trim(),
+    status: $("#orgStatus").value,
+    monthly_revenue: Math.max(0, Number($("#orgRevenue").value) || 0),
+    notes: $("#orgNotes").value.trim() || null,
+  };
+  const { data, error } = await sb.from("organisations").insert(row).select("id, name, notes, status, monthly_revenue").single();
+  if (error) return fail(error.code === "23505" ? new Error(`"${row.name}" already exists`) : error, "Couldn't add");
+  orgs.push({ ...data, features: new Set() });
+  closeModal("#orgModal");
+  toast(`Added ${data.name}`);
+  render();
+});
+
+/* ---------- manage features ---------- */
+$("#featuresBtn").addEventListener("click", () => { renderFeatList(); openModal("#featModal"); });
+function renderFeatList() {
+  $("#featList").innerHTML = features.map(f => `
+    <div class="feat-row" draggable="true" data-fid="${f.id}">
+      <span class="handle" title="Drag to reorder">⋮⋮</span>
+      <input type="text" data-ffield="name" value="${esc(f.name)}" placeholder="Feature name">
+      <input type="text" data-ffield="category" value="${esc(f.category || "")}" placeholder="Category">
+      <button class="icon-btn" data-fdel title="Delete feature"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    </div>`).join("") || `<div class="hint">No features yet. Add one below.</div>`;
+}
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "feature";
+
+$("#featAddForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = $("#featName").value.trim(); if (!name) return;
+  let key = slug(name);
+  if (features.some(f => f.key === key)) key += "_" + Date.now().toString(36);
+  const row = { key, name, category: $("#featCat").value.trim() || null, sort_order: (features.at(-1)?.sort_order ?? 0) + 10 };
+  const { data, error } = await sb.from("features").insert(row).select("id, key, name, category, sort_order").single();
+  if (error) return fail(error, "Couldn't add feature");
+  features.push(data);
+  $("#featAddForm").reset(); $("#featName").focus();
+  toast(`Added feature "${data.name}"`);
+  renderFeatList(); render();
+});
+
+$("#featList").addEventListener("change", async e => {
+  const row = e.target.closest(".feat-row"); const field = e.target.dataset.ffield; if (!row || !field) return;
+  const f = features.find(x => x.id === row.dataset.fid);
+  let v = e.target.value.trim();
+  if (field === "name" && !v) { e.target.value = f.name; return; }
+  if (field === "category" && !v) v = null;
+  const { error } = await sb.from("features").update({ [field]: v }).eq("id", f.id);
+  if (error) return fail(error);
+  f[field] = v; toast("Saved"); render();
+});
+$("#featList").addEventListener("click", async e => {
+  const btn = e.target.closest("[data-fdel]"); if (!btn) return;
+  const f = features.find(x => x.id === btn.closest(".feat-row").dataset.fid);
+  const used = orgs.filter(o => o.features.has(f.id)).length;
+  if (!confirm(`Delete feature "${f.name}"?${used ? ` It is enabled for ${used} organization${used === 1 ? "" : "s"}.` : ""}`)) return;
+  const { error } = await sb.from("features").delete().eq("id", f.id);
+  if (error) return fail(error, "Delete failed");
+  features = features.filter(x => x.id !== f.id);
+  orgs.forEach(o => o.features.delete(f.id));
+  toast("Feature deleted"); renderFeatList(); render();
+});
+
+// drag to reorder
+let dragId = null;
+$("#featList").addEventListener("dragstart", e => { const r = e.target.closest(".feat-row"); if (!r) return; dragId = r.dataset.fid; r.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; });
+$("#featList").addEventListener("dragend", e => { e.target.closest(".feat-row")?.classList.remove("dragging"); });
+$("#featList").addEventListener("dragover", e => {
+  e.preventDefault();
+  const over = e.target.closest(".feat-row"); if (!over || over.dataset.fid === dragId) return;
+  const dragging = $(`.feat-row[data-fid="${dragId}"]`);
+  const rect = over.getBoundingClientRect();
+  const after = e.clientY > rect.top + rect.height / 2;
+  over.parentNode.insertBefore(dragging, after ? over.nextSibling : over);
+});
+$("#featList").addEventListener("drop", async e => {
+  e.preventDefault();
+  const ids = $$(".feat-row", $("#featList")).map(r => r.dataset.fid);
+  features.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  const updates = features.map((f, i) => ({ id: f.id, key: f.key, name: f.name, sort_order: (i + 1) * 10 }));
+  features.forEach((f, i) => f.sort_order = (i + 1) * 10);
+  const { error } = await sb.from("features").upsert(updates, { onConflict: "id" });
+  if (error) return fail(error, "Reorder failed");
+  toast("Order saved"); render();
+});
+
+/* ---------- export ---------- */
+$("#exportBtn").addEventListener("click", () => {
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const head = ["Organization", "Status", "Monthly revenue", "Notes", ...features.map(f => f.name)];
+  const lines = [head.map(q).join(",")];
+  for (const o of visibleOrgs()) lines.push([o.name, o.status, o.monthly_revenue, o.notes, ...features.map(f => o.features.has(f.id) ? "Yes" : "")].map(q).join(","));
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `propfocus-org-tracker-${new Date().toISOString().slice(0, 10)}.csv` });
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+boot();
+</script>
+</body>
+</html>
