@@ -73,7 +73,7 @@ alter table whatsapp_blast_records enable row level security;
 --    Which PropFocus features each organisation has switched on, plus the
 --    organisation's lifecycle status and monthly revenue. Shares the
 --    `organisations` table above so there is one customer list.
-alter table organisations add column if not exists status text not null default 'trial';
+alter table organisations add column if not exists status text not null default 'free';
 alter table organisations add column if not exists monthly_revenue numeric(12, 2) not null default 0;
 
 do $$
@@ -83,7 +83,7 @@ begin
   ) then
     alter table organisations
       add constraint organisations_status_check
-      check (status in ('onboarding', 'trial', 'active', 'paused', 'churned'));
+      check (status in ('free', 'pilot', 'subscribed', 'suspended', 'delinquent'));
   end if;
 end $$;
 

@@ -115,7 +115,8 @@ policies. This has been run on project `yzsgosxqawdqfumtjagu`.
 user*). Every Auth user in the project can sign in to the tracker.
 
 **Using it**: add organisations (names are shared with the uploader), edit the
-name and revenue in place, pick a status, tick features, manage the feature
+name and revenue in place, pick a status (Free, Pilot, Subscribed, Suspended,
+Delinquent), tick features, manage the feature
 columns, sort/filter/search, and export the visible rows as CSV. There is
 deliberately no delete-organisation button, because that would cascade-delete
 the organisation's uploaded CRM records.

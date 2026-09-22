@@ -158,11 +158,11 @@
   }
   .status-select option { background: var(--panel-2); color: var(--text); font-weight: 500; }
   .status-select:focus { border-color: currentColor; }
-  .st-onboarding { background: rgba(106,169,255,.16); color: #9cc3ff; }
-  .st-trial      { background: rgba(245,185,66,.16); color: #ffd27a; }
-  .st-active     { background: rgba(62,207,142,.16); color: #6fe3ad; }
-  .st-paused     { background: rgba(139,147,156,.18); color: #b7bec6; }
-  .st-churned    { background: rgba(255,107,107,.16); color: #ff9d9d; }
+  .st-free       { background: rgba(139,147,156,.18); color: #b7bec6; }
+  .st-pilot      { background: rgba(106,169,255,.16); color: #9cc3ff; }
+  .st-subscribed { background: rgba(62,207,142,.16); color: #6fe3ad; }
+  .st-suspended  { background: rgba(245,185,66,.16); color: #ffd27a; }
+  .st-delinquent { background: rgba(255,107,107,.16); color: #ff9d9d; }
 
   .chk {
     appearance: none; -webkit-appearance: none;
@@ -313,7 +313,7 @@
     </div>
     <div class="stats">
       <div class="stat"><b id="statOrgs">0</b><span>Organizations</span></div>
-      <div class="stat"><b id="statActive">0</b><span>Active</span></div>
+      <div class="stat"><b id="statActive">0</b><span>Subscribed</span></div>
       <div class="stat"><b id="statMrr">₹0</b><span>Monthly revenue</span></div>
       <div class="stat"><b id="statFeatures">0</b><span>Features</span></div>
     </div>
@@ -328,11 +328,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
       <select id="statusFilter">
         <option value="">All statuses</option>
-        <option value="onboarding">Onboarding</option>
-        <option value="trial">Trial</option>
-        <option value="active">Active</option>
-        <option value="paused">Paused</option>
-        <option value="churned">Churned</option>
+        <option value="free">Free</option>
+        <option value="pilot">Pilot</option>
+        <option value="subscribed">Subscribed</option>
+        <option value="suspended">Suspended</option>
+        <option value="delinquent">Delinquent</option>
       </select>
     </div>
     <div class="spacer"></div>
@@ -365,11 +365,11 @@
       <input type="text" id="orgName" required placeholder="e.g. Skyline Realty">
       <label>Status</label>
       <select id="orgStatus">
-        <option value="onboarding">Onboarding</option>
-        <option value="trial" selected>Trial</option>
-        <option value="active">Active</option>
-        <option value="paused">Paused</option>
-        <option value="churned">Churned</option>
+        <option value="free" selected>Free</option>
+        <option value="pilot">Pilot</option>
+        <option value="subscribed">Subscribed</option>
+        <option value="suspended">Suspended</option>
+        <option value="delinquent">Delinquent</option>
       </select>
       <label>Monthly revenue (₹)</label>
       <input type="number" id="orgRevenue" min="0" step="1" value="0">
@@ -413,11 +413,11 @@ const CURRENCY_SYMBOL   = "₹";
 /* ========================================================================= */
 
 const STATUSES = [
-  { value: "onboarding", label: "Onboarding" },
-  { value: "trial",      label: "Trial" },
-  { value: "active",     label: "Active" },
-  { value: "paused",     label: "Paused" },
-  { value: "churned",    label: "Churned" },
+  { value: "free",       label: "Free" },
+  { value: "pilot",      label: "Pilot" },
+  { value: "subscribed", label: "Subscribed" },
+  { value: "suspended",  label: "Suspended" },
+  { value: "delinquent", label: "Delinquent" },
 ];
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -600,7 +600,7 @@ function renderFeatureCounts() {
 }
 function renderStats() {
   $("#statOrgs").textContent = orgs.length;
-  $("#statActive").textContent = orgs.filter(o => o.status === "active").length;
+  $("#statActive").textContent = orgs.filter(o => o.status === "subscribed").length;
   $("#statMrr").textContent = fmtMoney(orgs.reduce((s, o) => s + Number(o.monthly_revenue || 0), 0));
   $("#statFeatures").textContent = features.length;
 }
